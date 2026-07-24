@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:omzen": "tsc -b && BASE_PATH=/dailydivination/ vite build",
+    "deploy:omzen": "npm run build:omzen && rm -rf ../omzen-space/dailydivination && mkdir -p ../omzen-space/dailydivination && cp -R dist/. ../omzen-space/dailydivination/",
     "lint": "oxlint",
     "preview": "vite preview"
   },

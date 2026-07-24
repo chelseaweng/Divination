@@ -24,3 +24,17 @@ npm run dev
 npm run build
 npm run preview
 ```
+
+### 部署到 omzen.space/dailydivination
+
+需本機同時有 `../omzen-space`（[omzen-space](https://github.com/chelseaweng/omzen-space)）倉庫：
+
+```bash
+npm run deploy:omzen
+cd ../omzen-space
+git add dailydivination index.md
+git commit -m "Publish 符爻 daily divination under /dailydivination"
+git push
+```
+
+GitHub Pages 更新後即可開啟 https://omzen.space/dailydivination/

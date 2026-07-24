@@ -2,7 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/** Use BASE_PATH=/dailydivination/ when embedding under omzen.space */
+const base = process.env.BASE_PATH || '/'
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -17,7 +21,8 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         lang: 'zh-Hant',
-        start_url: '/',
+        start_url: base,
+        scope: base,
         icons: [
           {
             src: 'pwa-192.png',
@@ -39,6 +44,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallback: `${base}index.html`.replace(/\/{2,}/g, '/'),
       },
     }),
   ],
