@@ -5,6 +5,8 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
+type BrowserGuide = 'ios-safari' | 'ios-chrome' | 'ios-other' | 'android'
+
 const DISMISS_KEY = 'fuyao-install-dismissed'
 const DISMISS_DAYS = 14
 
@@ -24,7 +26,22 @@ function isMobile(): boolean {
 }
 
 function isIos(): boolean {
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const ua = navigator.userAgent
+  // iPadOS 13+ may report as Mac; touch points help catch it
+  return (
+    /iPhone|iPad|iPod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  )
+}
+
+function detectGuide(): BrowserGuide {
+  const ua = navigator.userAgent
+  if (isIos()) {
+    if (/CriOS/i.test(ua)) return 'ios-chrome'
+    if (/FxiOS|EdgiOS|OPiOS|OPT\//i.test(ua)) return 'ios-other'
+    return 'ios-safari'
+  }
+  return 'android'
 }
 
 function wasDismissedRecently(): boolean {
@@ -43,11 +60,52 @@ function dismissForLater(): void {
   localStorage.setItem(DISMISS_KEY, String(Date.now()))
 }
 
+const GUIDE_COPY: Record<
+  BrowserGuide,
+  { title: string; steps: string[] }
+> = {
+  'ios-safari': {
+    title: '用 Safari 加入主畫面',
+    steps: [
+      '點底部的「分享」按鈕',
+      '向下滑動，選擇「加入主畫面」',
+      '確認名稱後按「加入」',
+    ],
+  },
+  'ios-chrome': {
+    title: '用 Chrome 加入主畫面',
+    steps: [
+      '點網址列右側的「分享」按鈕',
+      '若沒看到，先點右下角「⋯」再選「分享」',
+      '選擇「加入主畫面」',
+      '確認名稱後按「加入」',
+    ],
+  },
+  'ios-other': {
+    title: '加入 iPhone 主畫面',
+    steps: [
+      '點瀏覽器的「分享」按鈕',
+      '選擇「加入主畫面」',
+      '確認名稱後按「加入」',
+    ],
+  },
+  android: {
+    title: '加入主畫面',
+    steps: [
+      '點瀏覽器選單「⋮」',
+      '選擇「安裝應用程式」或「加入主畫面」',
+    ],
+  },
+}
+
 export function InstallHint() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
   const [visible, setVisible] = useState(false)
-  const [iosGuide, setIosGuide] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [guide] = useState<BrowserGuide>(() =>
+    typeof navigator === 'undefined' ? 'android' : detectGuide(),
+  )
 
   useEffect(() => {
     if (isStandalone() || !isMobile() || wasDismissedRecently()) return
@@ -58,7 +116,6 @@ export function InstallHint() {
     }
     window.addEventListener('beforeinstallprompt', onBip)
 
-    // Ask shortly after landing so it feels intentional, not buried.
     const timer = window.setTimeout(() => {
       setVisible(true)
     }, 1200)
@@ -74,7 +131,7 @@ export function InstallHint() {
   const close = () => {
     dismissForLater()
     setVisible(false)
-    setIosGuide(false)
+    setShowGuide(false)
   }
 
   const install = async () => {
@@ -96,19 +153,16 @@ export function InstallHint() {
       return
     }
 
-    if (isIos()) {
-      setIosGuide(true)
-      return
-    }
-
-    // Android/other without deferred prompt: show brief how-to
-    setIosGuide(true)
+    // iOS (Safari / Chrome) and Android without native prompt → manual steps
+    setShowGuide(true)
   }
+
+  const copy = GUIDE_COPY[guide]
 
   return (
     <div className="install-overlay" role="dialog" aria-modal="true" aria-labelledby="install-title">
       <div className="install-card">
-        {!iosGuide ? (
+        {!showGuide ? (
           <>
             <p className="install-eyebrow">符爻 · PWA</p>
             <h2 id="install-title" className="install-title">
@@ -135,28 +189,17 @@ export function InstallHint() {
           <>
             <p className="install-eyebrow">安裝方式</p>
             <h2 id="install-title" className="install-title">
-              {isIos() ? '加入 iPhone 主畫面' : '加入主畫面'}
+              {copy.title}
             </h2>
-            {isIos() ? (
-              <ol className="install-steps">
-                <li>
-                  點 Safari 底部的<strong>分享</strong>按鈕
+            <ol className="install-steps">
+              {copy.steps.map((step) => (
+                <li key={step}>
+                  {step.split(/「([^」]+)」/g).map((part, i) =>
+                    i % 2 === 1 ? <strong key={`${step}-${part}`}>{part}</strong> : part,
+                  )}
                 </li>
-                <li>
-                  選擇<strong>加入主畫面</strong>
-                </li>
-                <li>確認名稱後按「加入」</li>
-              </ol>
-            ) : (
-              <ol className="install-steps">
-                <li>
-                  點瀏覽器選單<strong>⋮</strong>
-                </li>
-                <li>
-                  選擇<strong>安裝應用程式</strong>或<strong>加入主畫面</strong>
-                </li>
-              </ol>
-            )}
+              ))}
+            </ol>
             <div className="install-actions">
               <button type="button" className="btn" onClick={close}>
                 知道了
